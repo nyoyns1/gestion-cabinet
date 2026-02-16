@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -10,7 +12,7 @@ import { Patients } from './pages/Patients';
 import { Login } from './pages/Login';
 import { UserRole } from './types';
 
-// Simulating Next.js Middleware with a Client-Side Guard
+// Simulating Middleware with a Client-Side Guard
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: UserRole[] }) => {
   const { user, loading } = useAuth();
 
@@ -18,11 +20,10 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
   if (!user) return <Navigate to="/login" />;
   
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Si une secrétaire ou un thérapeute essaie d'accéder à une page interdite (ex: dashboard), on redirige vers le calendrier
     if (user.role === 'secretaire' || user.role === 'therapeute') {
       return <Navigate to="/calendar" />;
     }
-    return <Navigate to="/" />; // Default redirect for others (admins)
+    return <Navigate to="/" />;
   }
 
   return <>{children}</>;
