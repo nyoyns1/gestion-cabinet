@@ -1,0 +1,5 @@
+{
+  "name": "PhysioManager Pro",
+  "description": "Application complète de gestion de cabinet (SaaS) : Agenda, Patients, Finance et RBAC.",
+  "requestFramePermissions": []
+}
