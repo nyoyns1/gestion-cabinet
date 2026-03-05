@@ -1,6 +1,8 @@
+"use client";
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Profile } from '../types';
-import { mockDb } from '../services/mockDb';
+import { Profile } from '@/types';
+import { mockDb } from '@/services/mockDb';
 
 interface AuthContextType {
   user: Profile | null;
@@ -16,7 +18,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check local storage for persistent login session
     const storedUser = localStorage.getItem('physio_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -25,11 +26,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (username: string, password: string) => {
+    console.log('Attempting login for:', username);
     const foundUser = await mockDb.login(username, password);
     if (foundUser) {
+      console.log('Login successful:', foundUser);
       setUser(foundUser);
       localStorage.setItem('physio_user', JSON.stringify(foundUser));
     } else {
+      console.log('Login failed: Invalid credentials');
       throw new Error('Identifiants incorrects');
     }
   };
@@ -37,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('physio_user');
+    window.location.href = '/login';
   };
 
   return (

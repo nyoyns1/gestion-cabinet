@@ -87,8 +87,10 @@ let transactions: Transaction[] = [
 export const mockDb = {
   // Auth & User Management
   login: async (username: string, password: string): Promise<Profile | null> => {
+    console.log('mockDb.login called with:', { username, password });
     await new Promise(r => setTimeout(r, 600)); // Simulate latency
     const user = users.find(u => u.username === username && u.password === password);
+    console.log('mockDb.login found user:', user ? 'YES' : 'NO');
     if (user) {
       // Retourne le profil sans le mot de passe
       const { password, ...profile } = user;

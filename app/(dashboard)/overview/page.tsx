@@ -1,0 +1,224 @@
+"use client";
+
+import React, { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from 'recharts';
+import { mockDb } from '@/services/mockDb';
+import { useAuth } from '@/context/AuthContext';
+import { CalendarCheck, TrendingUp, TrendingDown, Users, Wallet, Calendar as CalendarIcon } from 'lucide-react';
+import { Appointment, Transaction } from '@/types';
+
+type FilterType = 'day' | 'month' | 'year';
+
+export default function DashboardPage() {
+  const { user } = useAuth();
+  const router = useRouter();
+  
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      router.push('/calendar');
+    }
+  }, [user, router]);
+
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [patientsCount, setPatientsCount] = useState(0);
+  const [filterType, setFilterType] = useState<FilterType>('month');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  useEffect(() => {
+    const loadData = async () => {
+      const apts = await mockDb.getAppointments();
+      const txs = await mockDb.getTransactions();
+      const pats = await mockDb.getPatients();
+
+      setAppointments(apts);
+      setTransactions(txs);
+      setPatientsCount(pats.length);
+    };
+    loadData();
+  }, []);
+
+  const isSamePeriod = (dateString: string) => {
+    const d = new Date(dateString);
+    const s = new Date(selectedDate);
+
+    if (filterType === 'day') {
+      return d.toDateString() === s.toDateString();
+    }
+    if (filterType === 'month') {
+      return d.getMonth() === s.getMonth() && d.getFullYear() === s.getFullYear();
+    }
+    if (filterType === 'year') {
+      return d.getFullYear() === s.getFullYear();
+    }
+    return false;
+  };
+
+  const filteredAppointments = useMemo(() => appointments.filter(a => isSamePeriod(a.start_time)), [appointments, filterType, selectedDate]);
+  const filteredTransactions = useMemo(() => transactions.filter(t => isSamePeriod(t.date)), [transactions, filterType, selectedDate]);
+
+  const kpi = useMemo(() => {
+    const gains = filteredTransactions.filter(t => t.type === 'gain').reduce((acc, t) => acc + t.amount, 0);
+    const expenses = filteredTransactions.filter(t => t.type === 'depense').reduce((acc, t) => acc + t.amount, 0);
+    const net = gains - expenses;
+    const pending = filteredAppointments.filter(a => a.status === 'En attente').length;
+
+    return {
+      appointmentsCount: filteredAppointments.length,
+      netProfit: net,
+      pendingCount: pending
+    };
+  }, [filteredAppointments, filteredTransactions]);
+
+  const chartData = useMemo(() => {
+    const dataMap = new Map<string, { name: string, gain: number, depense: number, sortKey: number }>();
+
+    filteredTransactions.forEach(t => {
+      const date = new Date(t.date);
+      let key = '';
+      let name = '';
+      let sortKey = 0;
+
+      if (filterType === 'year') {
+        key = `${date.getMonth()}`;
+        name = date.toLocaleDateString('fr-FR', { month: 'short' });
+        sortKey = date.getMonth();
+      } else if (filterType === 'month') {
+        key = `${date.getDate()}`;
+        name = `${date.getDate()}`;
+        sortKey = date.getDate();
+      } else {
+        key = `${date.getHours()}`;
+        name = `${date.getHours()}h`;
+        sortKey = date.getHours();
+      }
+
+      if (!dataMap.has(key)) {
+        dataMap.set(key, { name, gain: 0, depense: 0, sortKey });
+      }
+
+      const entry = dataMap.get(key)!;
+      if (t.type === 'gain') entry.gain += t.amount;
+      else entry.depense += t.amount;
+    });
+
+    return Array.from(dataMap.values()).sort((a, b) => a.sortKey - b.sortKey);
+  }, [filteredTransactions, filterType]);
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.value) return;
+    setSelectedDate(new Date(e.target.value));
+  };
+
+  const formatDateInputValue = () => {
+    const d = selectedDate;
+    if (filterType === 'day') return d.toISOString().split('T')[0];
+    if (filterType === 'month') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (filterType === 'year') return `${d.getFullYear()}-01-01`; 
+    return '';
+  };
+
+  if (user?.role !== 'admin') return null;
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Tableau de Bord</h1>
+          <p className="text-slate-500 mt-1">Vue d'ensemble et statistiques du cabinet.</p>
+        </div>
+
+        <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-2">
+           <div className="flex bg-slate-100 rounded-lg p-1">
+             <button onClick={() => setFilterType('day')} className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${filterType === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Jour</button>
+             <button onClick={() => setFilterType('month')} className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${filterType === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Mois</button>
+             <button onClick={() => setFilterType('year')} className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${filterType === 'year' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Année</button>
+           </div>
+           <div className="h-8 w-px bg-slate-200 mx-2"></div>
+           <div className="relative">
+             <CalendarIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+             {filterType === 'year' ? (
+                <input type="number" min="2020" max="2030" value={selectedDate.getFullYear()} onChange={(e) => { const newDate = new Date(selectedDate); newDate.setFullYear(parseInt(e.target.value)); setSelectedDate(newDate); }} className="pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 w-28 font-medium" />
+             ) : (
+                <input type={filterType === 'month' ? 'month' : 'date'} value={formatDateInputValue()} onChange={handleDateChange} className="pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-medium" />
+             )}
+           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">RDV</p>
+              <h3 className="text-3xl font-bold text-slate-900 mt-2">{kpi.appointmentsCount}</h3>
+            </div>
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><CalendarCheck size={24} /></div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+             <div className="flex justify-between items-start">
+               <div>
+                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Bénéfice Net</p>
+                 <h3 className={`text-3xl font-bold mt-2 ${kpi.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{kpi.netProfit > 0 ? '+' : ''}{kpi.netProfit} DH</h3>
+               </div>
+               <div className={`p-3 rounded-xl ${kpi.netProfit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{kpi.netProfit >= 0 ? <TrendingUp size={24} /> : <TrendingDown size={24} />}</div>
+             </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Patients</p>
+              <h3 className="text-3xl font-bold text-slate-900 mt-2">{patientsCount}</h3>
+            </div>
+            <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><Users size={24} /></div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">En attente</p>
+              <h3 className="text-3xl font-bold text-slate-900 mt-2">{kpi.pendingCount}</h3>
+            </div>
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Wallet size={24} /></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+          <h3 className="text-xl font-bold text-slate-800 mb-8">Évolution Financière</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorGain" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="colorDepense" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                  <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} formatter={(value: number) => [`${value} DH`, '']} />
+                  <Area type="monotone" dataKey="gain" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorGain)" name="Gains" />
+                  <Area type="monotone" dataKey="depense" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorDepense)" name="Dépenses" />
+                </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="bg-slate-900 text-white p-8 rounded-2xl shadow-xl flex flex-col justify-between relative overflow-hidden">
+          <div className="relative z-10">
+            <h3 className="text-2xl font-bold mb-3">PhysioManager Pro</h3>
+            <p className="text-slate-400 leading-relaxed">Votre cabinet progresse. Le bénéfice net est de <span className="text-white font-bold">{kpi.netProfit} DH</span> sur la période sélectionnée.</p>
+          </div>
+          <button className="relative z-10 bg-blue-600 hover:bg-blue-500 text-white py-4 px-6 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/20 active:scale-95 mt-8">Générer Rapport PDF</button>
+          
+          <div className="absolute -bottom-16 -right-16 w-56 h-56 bg-blue-500/20 rounded-full blur-3xl"></div>
+          <div className="absolute top-16 -left-16 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl"></div>
+        </div>
+      </div>
+    </div>
+  );
+}

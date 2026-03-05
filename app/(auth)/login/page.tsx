@@ -1,27 +1,28 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { Activity, Lock, User } from 'lucide-react';
 
-export const Login: React.FC = () => {
+export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   const { login, user: currentUser } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
 
-  // Redirection automatique si déjà connecté
-  React.useEffect(() => {
+  useEffect(() => {
     if (currentUser) {
        if (currentUser.role === 'secretaire' || currentUser.role === 'therapeute') {
-        navigate('/calendar');
+        router.push('/calendar');
       } else {
-        navigate('/');
+        router.push('/overview');
       }
     }
-  }, [currentUser, navigate]);
+  }, [currentUser, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,10 +31,8 @@ export const Login: React.FC = () => {
     
     try {
       await login(username, password);
-      // La redirection est gérée par le useEffect ou ici directement pour UX instantanée
-      // Le AuthContext met à jour le user, ce qui déclenche le useEffect
-    } catch (err) {
-      setError('Nom d\'utilisateur ou mot de passe incorrect.');
+    } catch (err: any) {
+      setError(err.message || 'Nom d\'utilisateur ou mot de passe incorrect.');
     } finally {
       setIsLoading(false);
     }
@@ -103,11 +102,11 @@ export const Login: React.FC = () => {
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
           <p className="text-xs text-slate-400">
             Identifiants par défaut : <br/>
-            <span className="font-mono text-slate-600">admin / 123</span><br/>
-            <span className="font-mono text-slate-600">sophie / 123</span>
+            <span className="font-mono text-slate-600 font-bold">admin / 123</span><br/>
+            <span className="font-mono text-slate-600 font-bold">sophie / 123</span>
           </p>
         </div>
       </div>
     </div>
   );
-};
+}
